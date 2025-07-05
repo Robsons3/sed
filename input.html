@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Desenhe sua Senha</title>
   <style>
     body {
@@ -44,43 +44,46 @@
 
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    const size = 3;
-    const radius = 15;
-    const offset = 100;
-    let pontos = [];
+
+    const size = 3;         // grade 3x3
+    const radius = 15;      // raio dos pontos
+    const offset = 100;     // distância entre pontos
+    const pontos = [];
     let selecionados = [];
     let desenhando = false;
 
-    // Gerar pontos da grade
+    // Cria os pontos na grade (3x3)
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        pontos.push({ x: x * offset + 50, y: y * offset + 50, usado: false });
+        pontos.push({ x: x * offset + 50, y: y * offset + 50 });
       }
     }
 
+    // Desenha os pontos e linhas conectando os selecionados
     function desenharTela() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      pontos.forEach(p => {
-        ctx.beginPath();
-        ctx.fillStyle = p.usado ? "#4fc3f7" : "#777";
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      });
 
+      // Desenha linhas entre selecionados
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 5;
       ctx.beginPath();
-      for (let i = 0; i < selecionados.length; i++) {
-        const p = selecionados[i];
-        if (i === 0) {
-          ctx.moveTo(p.x, p.y);
-        } else {
-          ctx.lineTo(p.x, p.y);
-        }
-      }
+      selecionados.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
       ctx.stroke();
+
+      // Desenha os pontos
+      pontos.forEach(p => {
+        const selecionado = selecionados.includes(p);
+        ctx.beginPath();
+        ctx.fillStyle = selecionado ? "#4fc3f7" : "#777";
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
+    // Pega posição do evento (mouse ou touch)
     function getPos(evt) {
       const rect = canvas.getBoundingClientRect();
       const x = (evt.touches ? evt.touches[0].clientX : evt.clientX) - rect.left;
@@ -88,61 +91,53 @@
       return { x, y };
     }
 
+    // Encontra ponto próximo que ainda não foi selecionado
     function pontoProximo(pos) {
-      return pontos.find(p => !p.usado && Math.hypot(p.x - pos.x, p.y - pos.y) < radius * 2);
+      return pontos.find(p =>
+        !selecionados.includes(p) &&
+        Math.hypot(p.x - pos.x, p.y - pos.y) < radius * 2
+      );
     }
 
+    // Quando termina, envia padrão para o Firebase e reseta
     function finalizar() {
       if (selecionados.length > 0) {
         const padrao = selecionados.map(p => [p.x, p.y]);
         const id = Date.now();
         database.ref("padroes/" + id).set(padrao);
       }
-
-      // Resetar
-      pontos.forEach(p => p.usado = false);
       selecionados = [];
       desenharTela();
     }
 
-    canvas.addEventListener("mousedown", e => {
-      desenhando = true;
+    canvas.addEventListener("mousedown", () => desenhando = true);
+    canvas.addEventListener("mouseup", () => {
+      desenhando = false;
+      finalizar();
     });
-
     canvas.addEventListener("mousemove", e => {
       if (!desenhando) return;
       const pos = getPos(e);
       const p = pontoProximo(pos);
       if (p) {
-        p.usado = true;
         selecionados.push(p);
         desenharTela();
       }
     });
 
-    canvas.addEventListener("mouseup", e => {
+    canvas.addEventListener("touchstart", () => desenhando = true);
+    canvas.addEventListener("touchend", () => {
       desenhando = false;
       finalizar();
     });
-
-    canvas.addEventListener("touchstart", e => {
-      desenhando = true;
-    });
-
     canvas.addEventListener("touchmove", e => {
       if (!desenhando) return;
       const pos = getPos(e);
       const p = pontoProximo(pos);
       if (p) {
-        p.usado = true;
         selecionados.push(p);
         desenharTela();
       }
-    });
-
-    canvas.addEventListener("touchend", e => {
-      desenhando = false;
-      finalizar();
     });
 
     desenharTela();
